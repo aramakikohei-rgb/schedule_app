@@ -24,8 +24,7 @@ function encodeEventToUrl(event: ScheduleEvent): string {
 async function sendEmailNotification(
   organizerEmail: string,
   eventTitle: string,
-  participantName: string,
-  eventUrl: string
+  participantName: string
 ): Promise<void> {
   try {
     const response = await fetch('https://api.web3forms.com/submit', {
@@ -35,10 +34,10 @@ async function sendEmailNotification(
       },
       body: JSON.stringify({
         access_key: 'ef54615d-06a6-4b54-a79a-a0663e248cae',
-        subject: `New response for "${eventTitle}"`,
+        subject: `[ちょうせいくん] ${participantName} responded to "${eventTitle}"`,
         from_name: 'ちょうせいくん',
         to: organizerEmail,
-        message: `${participantName} has submitted their availability for "${eventTitle}".\n\nView the event: ${eventUrl}`,
+        message: `${participantName} has submitted their availability for "${eventTitle}".`,
       }),
     });
 
@@ -226,14 +225,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Send email notification if organizer email exists
       if (updatedEvent.organizerEmail) {
-        const eventUrl = getShareableUrl(updatedEvent);
-        sendEmailNotification(updatedEvent.organizerEmail, updatedEvent.title, name, eventUrl);
+        sendEmailNotification(updatedEvent.organizerEmail, updatedEvent.title, name);
       }
     } else if (event?.organizerEmail) {
       // Send email notification for local events
-      const updatedEvent = { ...event, participants: [...event.participants, newResponse] };
-      const eventUrl = getShareableUrl(updatedEvent);
-      sendEmailNotification(event.organizerEmail, event.title, name, eventUrl);
+      sendEmailNotification(event.organizerEmail, event.title, name);
     }
 
     // Update local events
