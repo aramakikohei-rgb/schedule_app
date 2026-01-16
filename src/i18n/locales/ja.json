@@ -1,0 +1,80 @@
+{
+  "app": {
+    "title": "ちょうせいくん",
+    "subtitle": "ログイン不要で簡単に日程調整",
+    "createNew": "イベントを作成",
+    "credit": "developed by nano-banana"
+  },
+  "language": {
+    "en": "EN",
+    "ja": "JP"
+  },
+  "create": {
+    "title": "イベント作成",
+    "eventName": "イベント名",
+    "eventNamePlaceholder": "例: 新年会、プロジェクト会議",
+    "memo": "メモ（任意）",
+    "memoPlaceholder": "参加者へのメモを追加...",
+    "dateCandidates": "候補日時",
+    "addDate": "日時を追加",
+    "datePlaceholder": "例: 1/20(月) 19:00〜",
+    "noDateCandidates": "候補日時を1つ以上追加してください",
+    "createEvent": "イベントを作成",
+    "creating": "作成中...",
+    "addTime": "時間を追加（任意）",
+    "timePlaceholder": "例: 19:00〜"
+  },
+  "event": {
+    "title": "イベント詳細",
+    "copyUrl": "URLをコピー",
+    "copiedUrl": "コピーしました",
+    "shareMessage": "このURLを参加者に共有してください",
+    "respond": "出欠を入力",
+    "editResponse": "回答を編集",
+    "noResponses": "まだ回答がありません。URLを共有して出欠を集めましょう。",
+    "participants": "参加者",
+    "summary": "集計",
+    "best": "Best",
+    "available": "出席",
+    "maybe": "未定",
+    "unavailable": "欠席"
+  },
+  "respond": {
+    "title": "出欠を入力",
+    "yourName": "お名前",
+    "namePlaceholder": "名前を入力",
+    "comment": "コメント（任意）",
+    "commentPlaceholder": "コメントを追加...",
+    "selectAvailability": "各日程の出欠を選択してください",
+    "submit": "回答する",
+    "update": "更新する",
+    "submitting": "送信中...",
+    "deleteResponse": "回答を削除",
+    "confirmDelete": "回答を削除してもよろしいですか？"
+  },
+  "availability": {
+    "available": "出席",
+    "maybe": "未定",
+    "unavailable": "欠席",
+    "notSelected": "未選択"
+  },
+  "calendar": {
+    "weekdays": {
+      "sun": "日",
+      "mon": "月",
+      "tue": "火",
+      "wed": "水",
+      "thu": "木",
+      "fri": "金",
+      "sat": "土"
+    }
+  },
+  "common": {
+    "back": "戻る",
+    "close": "閉じる",
+    "delete": "削除",
+    "edit": "編集",
+    "save": "保存",
+    "cancel": "キャンセル"
+  }
+}

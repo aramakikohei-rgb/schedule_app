@@ -1,0 +1,80 @@
+{
+  "app": {
+    "title": "Scheduling Tool",
+    "subtitle": "Easy schedule coordination without login",
+    "createNew": "Create New Event",
+    "credit": "developed by nano-banana"
+  },
+  "language": {
+    "en": "EN",
+    "ja": "JP"
+  },
+  "create": {
+    "title": "Create New Event",
+    "eventName": "Event Name",
+    "eventNamePlaceholder": "e.g., Team dinner, Project meeting",
+    "memo": "Memo (Optional)",
+    "memoPlaceholder": "Add notes for participants...",
+    "dateCandidates": "Date/Time Candidates",
+    "addDate": "Add Date/Time",
+    "datePlaceholder": "e.g., Jan 20 (Mon) 7:00 PM",
+    "noDateCandidates": "Please add at least one date candidate",
+    "createEvent": "Create Event",
+    "creating": "Creating...",
+    "addTime": "Add time (optional)",
+    "timePlaceholder": "e.g., 7:00 PM"
+  },
+  "event": {
+    "title": "Event Details",
+    "copyUrl": "Copy URL",
+    "copiedUrl": "Copied!",
+    "shareMessage": "Share this URL with participants",
+    "respond": "Enter Your Availability",
+    "editResponse": "Edit Response",
+    "noResponses": "No responses yet. Share the URL to collect availability.",
+    "participants": "Participants",
+    "summary": "Summary",
+    "best": "Best",
+    "available": "Available",
+    "maybe": "Maybe",
+    "unavailable": "Unavailable"
+  },
+  "respond": {
+    "title": "Enter Your Availability",
+    "yourName": "Your Name",
+    "namePlaceholder": "Enter your name",
+    "comment": "Comment (Optional)",
+    "commentPlaceholder": "Add a comment...",
+    "selectAvailability": "Select your availability for each date",
+    "submit": "Submit",
+    "update": "Update",
+    "submitting": "Submitting...",
+    "deleteResponse": "Delete My Response",
+    "confirmDelete": "Are you sure you want to delete your response?"
+  },
+  "availability": {
+    "available": "Available",
+    "maybe": "Maybe",
+    "unavailable": "Unavailable",
+    "notSelected": "Not selected"
+  },
+  "calendar": {
+    "weekdays": {
+      "sun": "Sun",
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat"
+    }
+  },
+  "common": {
+    "back": "Back",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel"
+  }
+}
