@@ -1,7 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { Availability } from '../types';
+
+// Shorten URL using TinyURL API
+async function shortenUrl(longUrl: string): Promise<string> {
+  try {
+    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    if (response.ok) {
+      return await response.text();
+    }
+  } catch (error) {
+    console.error('Failed to shorten URL:', error);
+  }
+  return longUrl; // Return original URL if shortening fails
+}
 
 const AvailabilityIcon = ({ availability }: { availability: Availability }) => {
   switch (availability) {
@@ -20,9 +33,24 @@ export function EventPage() {
   const { t } = useTranslation();
   const { currentEventId, getEvent, getShareableUrl, setCurrentView, setEditingResponseId } = useApp();
   const [copied, setCopied] = useState(false);
+  const [shortUrl, setShortUrl] = useState<string>('');
+  const [isShortening, setIsShortening] = useState(false);
 
   const event = currentEventId ? getEvent(currentEventId) : undefined;
   const shareUrl = event ? getShareableUrl(event) : '';
+
+  // Shorten URL when shareUrl changes
+  useEffect(() => {
+    if (shareUrl) {
+      setIsShortening(true);
+      shortenUrl(shareUrl).then(shortened => {
+        setShortUrl(shortened);
+        setIsShortening(false);
+      });
+    }
+  }, [shareUrl]);
+
+  const displayUrl = shortUrl || shareUrl;
 
   const summary = useMemo(() => {
     if (!event) return {};
@@ -75,7 +103,7 @@ export function EventPage() {
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(displayUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -121,12 +149,13 @@ export function EventPage() {
               <input
                 type="text"
                 readOnly
-                value={shareUrl}
+                value={isShortening ? 'Shortening URL...' : displayUrl}
                 className="flex-1 px-3 py-2 bg-white border border-[#D2C4BA] rounded-lg text-sm text-[#5C4D3D] truncate"
               />
               <button
                 onClick={handleCopyUrl}
-                className={`px-4 py-2 ${copied ? 'bg-green-400' : 'bg-[#B39E8A] hover:bg-[#A08975]'} text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap`}
+                disabled={isShortening}
+                className={`px-4 py-2 ${copied ? 'bg-green-400' : 'bg-[#B39E8A] hover:bg-[#A08975]'} text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap disabled:opacity-50`}
               >
                 {copied ? t('event.copiedUrl') : t('event.copyUrl')}
               </button>
