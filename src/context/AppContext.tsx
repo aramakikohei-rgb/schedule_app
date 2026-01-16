@@ -34,7 +34,7 @@ async function sendEmailNotification(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        access_key: '4e0a82d4-69c7-4b9e-8c5a-3f8d9e2b1a0c', // Public demo key - replace with your own
+        access_key: 'ef54615d-06a6-4b54-a79a-a0663e248cae',
         subject: `New response for "${eventTitle}"`,
         from_name: 'ちょうせいくん',
         to: organizerEmail,
