@@ -22,7 +22,10 @@
     "createEvent": "Create Event",
     "creating": "Creating...",
     "addTime": "Add time (optional)",
-    "timePlaceholder": "e.g., 7:00 PM"
+    "timePlaceholder": "e.g., 7:00 PM",
+    "organizerEmail": "Email for notifications (optional)",
+    "organizerEmailPlaceholder": "example@email.com",
+    "organizerEmailHint": "Get notified when someone responds"
   },
   "event": {
     "title": "Event Details",

@@ -11,12 +11,43 @@ function encodeEventToUrl(event: ScheduleEvent): string {
     id: event.id,
     title: event.title,
     memo: event.memo,
+    organizerEmail: event.organizerEmail,
     dateCandidates: event.dateCandidates,
     participants: event.participants,
     createdAt: event.createdAt,
   };
   const json = JSON.stringify(minimalEvent);
   return btoa(encodeURIComponent(json));
+}
+
+// Send email notification using Web3Forms
+async function sendEmailNotification(
+  organizerEmail: string,
+  eventTitle: string,
+  participantName: string,
+  eventUrl: string
+): Promise<void> {
+  try {
+    const response = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        access_key: '4e0a82d4-69c7-4b9e-8c5a-3f8d9e2b1a0c', // Public demo key - replace with your own
+        subject: `New response for "${eventTitle}"`,
+        from_name: 'ちょうせいくん',
+        to: organizerEmail,
+        message: `${participantName} has submitted their availability for "${eventTitle}".\n\nView the event: ${eventUrl}`,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to send email notification');
+    }
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+  }
 }
 
 // Decode event data from base64 URL
@@ -37,7 +68,7 @@ interface AppContextType {
   setCurrentEventId: (id: string | null) => void;
   setCurrentView: (view: AppView) => void;
   setEditingResponseId: (id: string | null) => void;
-  createEvent: (title: string, memo: string, dateCandidates: { datetime: string }[]) => string;
+  createEvent: (title: string, memo: string, dateCandidates: { datetime: string }[], organizerEmail?: string) => string;
   getEvent: (id: string) => ScheduleEvent | undefined;
   getShareableUrl: (event: ScheduleEvent) => string;
   addParticipantResponse: (eventId: string, name: string, comment: string, responses: Record<string, Availability>) => void;
@@ -139,12 +170,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [sharedEvent, currentView]);
 
-  const createEvent = (title: string, memo: string, dateCandidates: { datetime: string }[]): string => {
+  const createEvent = (title: string, memo: string, dateCandidates: { datetime: string }[], organizerEmail?: string): string => {
     const id = uuidv4();
     const newEvent: ScheduleEvent = {
       id,
       title,
       memo,
+      organizerEmail,
       dateCandidates: dateCandidates.map(dc => ({
         id: uuidv4(),
         datetime: dc.datetime,
@@ -181,6 +213,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
 
+    // Get the event to check for organizer email
+    const event = sharedEvent?.id === eventId ? sharedEvent : events.find(e => e.id === eventId);
+
     // Update shared event if it matches
     if (sharedEvent && sharedEvent.id === eventId) {
       const updatedEvent = {
@@ -188,6 +223,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         participants: [...sharedEvent.participants, newResponse],
       };
       setSharedEvent(updatedEvent);
+
+      // Send email notification if organizer email exists
+      if (updatedEvent.organizerEmail) {
+        const eventUrl = getShareableUrl(updatedEvent);
+        sendEmailNotification(updatedEvent.organizerEmail, updatedEvent.title, name, eventUrl);
+      }
+    } else if (event?.organizerEmail) {
+      // Send email notification for local events
+      const updatedEvent = { ...event, participants: [...event.participants, newResponse] };
+      const eventUrl = getShareableUrl(updatedEvent);
+      sendEmailNotification(event.organizerEmail, event.title, name, eventUrl);
     }
 
     // Update local events

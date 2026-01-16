@@ -17,6 +17,7 @@ export interface ScheduleEvent {
   id: string;
   title: string;
   memo: string;
+  organizerEmail?: string;
   dateCandidates: DateCandidate[];
   participants: ParticipantResponse[];
   createdAt: string;

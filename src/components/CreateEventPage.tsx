@@ -12,6 +12,7 @@ export function CreateEventPage() {
 
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
+  const [organizerEmail, setOrganizerEmail] = useState('');
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [timeInputs, setTimeInputs] = useState<Record<string, string>>({});
   const [isCreating, setIsCreating] = useState(false);
@@ -63,7 +64,7 @@ export function CreateEventPage() {
       };
     });
 
-    const eventId = createEvent(title.trim(), memo.trim(), dateCandidates);
+    const eventId = createEvent(title.trim(), memo.trim(), dateCandidates, organizerEmail.trim() || undefined);
     setCurrentEventId(eventId);
     setCurrentView('event');
   };
@@ -106,6 +107,23 @@ export function CreateEventPage() {
               rows={3}
               placeholder={t('create.memoPlaceholder')}
             />
+          </div>
+
+          {/* Organizer Email for Notifications */}
+          <div>
+            <label className="block text-sm font-semibold text-[#5C4D3D] mb-2">
+              {t('create.organizerEmail')}
+            </label>
+            <input
+              type="email"
+              value={organizerEmail}
+              onChange={(e) => setOrganizerEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-[#D2C4BA] rounded-lg focus:ring-2 focus:ring-[#B39E8A] focus:border-[#B39E8A] outline-none"
+              placeholder={t('create.organizerEmailPlaceholder')}
+            />
+            <p className="mt-1 text-xs text-[#8C7B6A]">
+              {t('create.organizerEmailHint')}
+            </p>
           </div>
 
           {/* Calendar Picker */}

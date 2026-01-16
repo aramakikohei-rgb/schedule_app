@@ -22,7 +22,10 @@
     "createEvent": "イベントを作成",
     "creating": "作成中...",
     "addTime": "時間を追加（任意）",
-    "timePlaceholder": "例: 19:00〜"
+    "timePlaceholder": "例: 19:00〜",
+    "organizerEmail": "通知用メールアドレス（任意）",
+    "organizerEmailPlaceholder": "example@email.com",
+    "organizerEmailHint": "回答があった時にメールでお知らせします"
   },
   "event": {
     "title": "イベント詳細",
