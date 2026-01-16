@@ -130,10 +130,21 @@ export function CreateEventPage() {
                 {selectedDates.map(date => {
                   const dateKey = format(date, 'yyyy-MM-dd');
                   return (
-                    <div key={dateKey} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-[#D2C4BA]">
-                      <span className="font-medium text-[#5C4D3D] min-w-[100px]">
-                        {formatDateForDisplay(date)}
-                      </span>
+                    <div key={dateKey} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white rounded-lg p-3 border border-[#D2C4BA]">
+                      <div className="flex items-center justify-between sm:justify-start gap-2">
+                        <span className="font-medium text-[#5C4D3D] text-sm sm:text-base sm:min-w-[100px]">
+                          {formatDateForDisplay(date)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDateSelect(date)}
+                          className="sm:hidden text-[#8C7B6A] hover:text-red-500 transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                       <input
                         type="text"
                         value={timeInputs[dateKey] || ''}
@@ -144,7 +155,7 @@ export function CreateEventPage() {
                       <button
                         type="button"
                         onClick={() => handleDateSelect(date)}
-                        className="text-[#8C7B6A] hover:text-red-500 transition-colors"
+                        className="hidden sm:block text-[#8C7B6A] hover:text-red-500 transition-colors"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
