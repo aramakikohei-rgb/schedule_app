@@ -1,61 +1,40 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import type { ScheduleEvent, AppData, AppView, ParticipantResponse, Availability } from '../types';
+import { supabase, type DbEvent, type DbDateCandidate, type DbParticipantResponse } from '../lib/supabase';
+import type { ScheduleEvent, AppView, Availability } from '../types';
 
-const STORAGE_KEY = 'schedule-coordinator-data';
-
-// Encode event data to base64 for URL sharing
-function encodeEventToUrl(event: ScheduleEvent): string {
-  const minimalEvent = {
-    id: event.id,
-    title: event.title,
-    memo: event.memo,
-    organizerEmail: event.organizerEmail,
-    dateCandidates: event.dateCandidates,
-    participants: event.participants,
-    createdAt: event.createdAt,
-  };
-  const json = JSON.stringify(minimalEvent);
-  return btoa(encodeURIComponent(json));
-}
+const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || 'ef54615d-06a6-4b54-a79a-a0663e248cae';
 
 // Send email notification using Web3Forms
 async function sendEmailNotification(
   organizerEmail: string,
   eventTitle: string,
-  participantName: string
+  participantName: string,
+  viewUrl: string
 ): Promise<void> {
+  console.log('Sending email notification:', { organizerEmail, eventTitle, participantName, viewUrl });
+
   try {
     const response = await fetch('https://api.web3forms.com/submit', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        access_key: 'ef54615d-06a6-4b54-a79a-a0663e248cae',
-        subject: `[ちょうせいくん] ${participantName} responded to "${eventTitle}"`,
+        access_key: WEB3FORMS_KEY,
+        subject: `[ちょうせいくん] New response for "${eventTitle}"`,
         from_name: 'ちょうせいくん',
         to: organizerEmail,
-        message: `${participantName} has submitted their availability for "${eventTitle}".`,
+        name: participantName,
+        message: `${participantName} has submitted their availability.`,
+        'View Responses': viewUrl,
       }),
     });
 
-    if (!response.ok) {
-      console.error('Failed to send email notification');
-    }
+    const result = await response.json();
+    console.log('Email notification result:', result);
+
+    if (!response.ok) console.error('Failed to send email notification');
   } catch (error) {
     console.error('Error sending email notification:', error);
-  }
-}
-
-// Decode event data from base64 URL
-function decodeEventFromUrl(encoded: string): ScheduleEvent | null {
-  try {
-    const json = decodeURIComponent(atob(encoded));
-    return JSON.parse(json) as ScheduleEvent;
-  } catch {
-    return null;
   }
 }
 
@@ -64,67 +43,146 @@ interface AppContextType {
   currentEventId: string | null;
   currentView: AppView;
   editingResponseId: string | null;
+  isLoading: boolean;
+  error: string | null;
   setCurrentEventId: (id: string | null) => void;
   setCurrentView: (view: AppView) => void;
   setEditingResponseId: (id: string | null) => void;
-  createEvent: (title: string, memo: string, dateCandidates: { datetime: string }[], organizerEmail?: string) => string;
+  createEvent: (title: string, memo: string, dateCandidates: { datetime: string }[], organizerEmail?: string) => Promise<string>;
   getEvent: (id: string) => ScheduleEvent | undefined;
-  getShareableUrl: (event: ScheduleEvent) => string;
-  addParticipantResponse: (eventId: string, name: string, comment: string, responses: Record<string, Availability>) => void;
-  updateParticipantResponse: (eventId: string, responseId: string, name: string, comment: string, responses: Record<string, Availability>) => void;
-  deleteParticipantResponse: (eventId: string, responseId: string) => void;
+  fetchEvent: (id: string) => Promise<ScheduleEvent | null>;
+  getShareableUrl: (eventId: string) => string;
+  addParticipantResponse: (eventId: string, name: string, comment: string, responses: Record<string, Availability>) => Promise<void>;
+  updateParticipantResponse: (eventId: string, responseId: string, name: string, comment: string, responses: Record<string, Availability>) => Promise<void>;
+  deleteParticipantResponse: (eventId: string, responseId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-function loadFromStorage(): AppData {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error('Failed to load data from localStorage:', error);
-  }
-  return { events: [] };
-}
-
-function saveToStorage(data: AppData): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (error) {
-    console.error('Failed to save data to localStorage:', error);
-  }
-}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [editingResponseId, setEditingResponseId] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [sharedEvent, setSharedEvent] = useState<ScheduleEvent | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Generate shareable URL for an event
-  const getShareableUrl = useCallback((event: ScheduleEvent): string => {
-    const encoded = encodeEventToUrl(event);
+  // Generate shareable URL (now simple with just the event ID)
+  const getShareableUrl = useCallback((eventId: string): string => {
     const baseUrl = window.location.origin + window.location.pathname;
-    return `${baseUrl}#/e/${encoded}`;
+    return `${baseUrl}#/event/${eventId}`;
   }, []);
 
-  // Parse URL hash on mount - handle both old format and new encoded format
+  // Fetch a single event from Supabase
+  const fetchEvent = useCallback(async (id: string): Promise<ScheduleEvent | null> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Fetch event
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (eventError) {
+        if (eventError.code === 'PGRST116') {
+          // Event not found
+          return null;
+        }
+        throw eventError;
+      }
+      if (!eventData) return null;
+
+      const dbEvent = eventData as DbEvent;
+
+      // Fetch date candidates
+      const { data: dateCandidatesData, error: dcError } = await supabase
+        .from('date_candidates')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order');
+
+      if (dcError) throw dcError;
+
+      const dateCandidates = (dateCandidatesData || []) as DbDateCandidate[];
+
+      // Fetch participant responses with availability
+      const { data: responsesData, error: respError } = await supabase
+        .from('participant_responses')
+        .select(`
+          *,
+          response_availability (
+            date_candidate_id,
+            availability
+          )
+        `)
+        .eq('event_id', id)
+        .order('created_at');
+
+      if (respError) throw respError;
+
+      const responses = (responsesData || []) as DbParticipantResponse[];
+
+      // Transform to ScheduleEvent format
+      const event: ScheduleEvent = {
+        id: dbEvent.id,
+        title: dbEvent.title,
+        memo: dbEvent.memo || '',
+        organizerEmail: dbEvent.organizer_email || undefined,
+        createdAt: dbEvent.created_at,
+        dateCandidates: dateCandidates.map(dc => ({
+          id: dc.id,
+          datetime: dc.datetime,
+        })),
+        participants: responses.map(r => ({
+          id: r.id,
+          name: r.name,
+          comment: r.comment || '',
+          createdAt: r.created_at,
+          responses: Object.fromEntries(
+            (r.response_availability || []).map(ra => [
+              ra.date_candidate_id,
+              ra.availability as Availability,
+            ])
+          ),
+        })),
+      };
+
+      // Update local cache
+      setEvents(prev => {
+        const exists = prev.find(e => e.id === id);
+        if (exists) {
+          return prev.map(e => (e.id === id ? event : e));
+        }
+        return [...prev, event];
+      });
+
+      return event;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch event';
+      setError(message);
+      console.error('Error fetching event:', err);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Parse URL hash on mount
   useEffect(() => {
     const hash = window.location.hash;
 
-    // New format: #/e/{encoded_data} or #/e/{encoded_data}/respond
-    if (hash.startsWith('#/e/')) {
-      const parts = hash.replace('#/e/', '').split('/');
-      const encodedData = parts[0];
-      const decodedEvent = decodeEventFromUrl(encodedData);
+    // New format: #/event/{id} or #/event/{id}/respond
+    if (hash.startsWith('#/event/')) {
+      const parts = hash.replace('#/event/', '').split('/');
+      const eventId = parts[0];
 
-      if (decodedEvent) {
-        setSharedEvent(decodedEvent);
-        setCurrentEventId(decodedEvent.id);
+      if (eventId) {
+        setCurrentEventId(eventId);
+        fetchEvent(eventId);
+
         if (parts[1] === 'respond') {
           setCurrentView('respond');
         } else {
@@ -132,172 +190,226 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-    // Legacy format: #/event/{id}
-    else if (hash.startsWith('#/event/')) {
-      const eventId = hash.replace('#/event/', '').split('/')[0];
-      setCurrentEventId(eventId);
-      if (hash.includes('/respond')) {
-        setCurrentView('respond');
-      } else {
-        setCurrentView('event');
+  }, [fetchEvent]);
+
+  // Update URL when view changes
+  useEffect(() => {
+    if (currentEventId && currentView === 'event') {
+      window.history.replaceState(null, '', `#/event/${currentEventId}`);
+    } else if (currentEventId && currentView === 'respond') {
+      window.history.replaceState(null, '', `#/event/${currentEventId}/respond`);
+    } else if (currentView === 'home') {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [currentEventId, currentView]);
+
+  // Create a new event
+  const createEvent = async (
+    title: string,
+    memo: string,
+    dateCandidates: { datetime: string }[],
+    organizerEmail?: string
+  ): Promise<string> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Insert event
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .insert({
+          title,
+          memo,
+          organizer_email: organizerEmail || null,
+        })
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+
+      const dbEvent = eventData as DbEvent;
+
+      // Insert date candidates
+      if (dateCandidates.length > 0) {
+        const { error: dcError } = await supabase
+          .from('date_candidates')
+          .insert(
+            dateCandidates.map((dc, index) => ({
+              event_id: dbEvent.id,
+              datetime: dc.datetime,
+              sort_order: index,
+            }))
+          );
+
+        if (dcError) throw dcError;
       }
+
+      // Fetch the complete event
+      await fetchEvent(dbEvent.id);
+
+      return dbEvent.id;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create event';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
-
-  // Load data from localStorage on mount
-  useEffect(() => {
-    const data = loadFromStorage();
-    setEvents(data.events);
-    setIsInitialized(true);
-  }, []);
-
-  // Save to localStorage whenever data changes
-  useEffect(() => {
-    if (isInitialized) {
-      saveToStorage({ events });
-    }
-  }, [events, isInitialized]);
-
-  // Update URL hash when shared event changes (for syncing responses)
-  useEffect(() => {
-    if (sharedEvent && currentView === 'event') {
-      const encoded = encodeEventToUrl(sharedEvent);
-      window.history.replaceState(null, '', `#/e/${encoded}`);
-    } else if (sharedEvent && currentView === 'respond') {
-      const encoded = encodeEventToUrl(sharedEvent);
-      window.history.replaceState(null, '', `#/e/${encoded}/respond`);
-    }
-  }, [sharedEvent, currentView]);
-
-  const createEvent = (title: string, memo: string, dateCandidates: { datetime: string }[], organizerEmail?: string): string => {
-    const id = uuidv4();
-    const newEvent: ScheduleEvent = {
-      id,
-      title,
-      memo,
-      organizerEmail,
-      dateCandidates: dateCandidates.map(dc => ({
-        id: uuidv4(),
-        datetime: dc.datetime,
-      })),
-      participants: [],
-      createdAt: new Date().toISOString(),
-    };
-    setEvents(prev => [...prev, newEvent]);
-    // Also set as shared event so URL gets updated
-    setSharedEvent(newEvent);
-    return id;
   };
 
+  // Get event from local cache
   const getEvent = (id: string): ScheduleEvent | undefined => {
-    // First check shared event (from URL)
-    if (sharedEvent && sharedEvent.id === id) {
-      return sharedEvent;
-    }
-    // Then check local events
     return events.find(e => e.id === id);
   };
 
-  const addParticipantResponse = (
+  // Add a participant response
+  const addParticipantResponse = async (
     eventId: string,
     name: string,
     comment: string,
     responses: Record<string, Availability>
-  ): void => {
-    const newResponse: ParticipantResponse = {
-      id: uuidv4(),
-      name,
-      comment,
-      responses,
-      createdAt: new Date().toISOString(),
-    };
+  ): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
 
-    // Get the event to check for organizer email
-    const event = sharedEvent?.id === eventId ? sharedEvent : events.find(e => e.id === eventId);
+    try {
+      // Insert participant response
+      const { data: responseData, error: respError } = await supabase
+        .from('participant_responses')
+        .insert({
+          event_id: eventId,
+          name,
+          comment,
+        })
+        .select()
+        .single();
 
-    // Update shared event if it matches
-    if (sharedEvent && sharedEvent.id === eventId) {
-      const updatedEvent = {
-        ...sharedEvent,
-        participants: [...sharedEvent.participants, newResponse],
-      };
-      setSharedEvent(updatedEvent);
+      if (respError) throw respError;
 
-      // Send email notification if organizer email exists
-      if (updatedEvent.organizerEmail) {
-        sendEmailNotification(updatedEvent.organizerEmail, updatedEvent.title, name);
+      const dbResponse = responseData as DbParticipantResponse;
+
+      // Insert availability records
+      const availabilityRecords = Object.entries(responses)
+        .filter(([_, availability]) => availability !== null)
+        .map(([dateCandidateId, availability]) => ({
+          response_id: dbResponse.id,
+          date_candidate_id: dateCandidateId,
+          availability,
+        }));
+
+      if (availabilityRecords.length > 0) {
+        const { error: avError } = await supabase
+          .from('response_availability')
+          .insert(availabilityRecords);
+
+        if (avError) throw avError;
       }
-    } else if (event?.organizerEmail) {
-      // Send email notification for local events
-      sendEmailNotification(event.organizerEmail, event.title, name);
-    }
 
-    // Update local events
-    setEvents(prev =>
-      prev.map(event =>
-        event.id === eventId
-          ? { ...event, participants: [...event.participants, newResponse] }
-          : event
-      )
-    );
+      // Refresh event data
+      const event = await fetchEvent(eventId);
+
+      console.log('Event after fetch:', event);
+      console.log('Organizer email:', event?.organizerEmail);
+
+      // Send email notification
+      if (event?.organizerEmail) {
+        const viewUrl = getShareableUrl(eventId);
+        console.log('Sending email to:', event.organizerEmail, 'with URL:', viewUrl);
+        await sendEmailNotification(event.organizerEmail, event.title, name, viewUrl);
+      } else {
+        console.log('No organizer email found, skipping email notification');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to add response';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const updateParticipantResponse = (
+  // Update a participant response
+  const updateParticipantResponse = async (
     eventId: string,
     responseId: string,
     name: string,
     comment: string,
     responses: Record<string, Availability>
-  ): void => {
-    // Update shared event if it matches
-    if (sharedEvent && sharedEvent.id === eventId) {
-      const updatedEvent = {
-        ...sharedEvent,
-        participants: sharedEvent.participants.map(p =>
-          p.id === responseId ? { ...p, name, comment, responses } : p
-        ),
-      };
-      setSharedEvent(updatedEvent);
-    }
+  ): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
 
-    // Update local events
-    setEvents(prev =>
-      prev.map(event =>
-        event.id === eventId
-          ? {
-              ...event,
-              participants: event.participants.map(p =>
-                p.id === responseId
-                  ? { ...p, name, comment, responses }
-                  : p
-              ),
-            }
-          : event
-      )
-    );
+    try {
+      // Update participant response
+      const { error: respError } = await supabase
+        .from('participant_responses')
+        .update({ name, comment })
+        .eq('id', responseId);
+
+      if (respError) throw respError;
+
+      // Delete existing availability records
+      const { error: delError } = await supabase
+        .from('response_availability')
+        .delete()
+        .eq('response_id', responseId);
+
+      if (delError) throw delError;
+
+      // Insert new availability records
+      const availabilityRecords = Object.entries(responses)
+        .filter(([_, availability]) => availability !== null)
+        .map(([dateCandidateId, availability]) => ({
+          response_id: responseId,
+          date_candidate_id: dateCandidateId,
+          availability,
+        }));
+
+      if (availabilityRecords.length > 0) {
+        const { error: avError } = await supabase
+          .from('response_availability')
+          .insert(availabilityRecords);
+
+        if (avError) throw avError;
+      }
+
+      // Refresh event data
+      await fetchEvent(eventId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update response';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const deleteParticipantResponse = (eventId: string, responseId: string): void => {
-    // Update shared event if it matches
-    if (sharedEvent && sharedEvent.id === eventId) {
-      const updatedEvent = {
-        ...sharedEvent,
-        participants: sharedEvent.participants.filter(p => p.id !== responseId),
-      };
-      setSharedEvent(updatedEvent);
-    }
+  // Delete a participant response
+  const deleteParticipantResponse = async (
+    eventId: string,
+    responseId: string
+  ): Promise<void> => {
+    setIsLoading(true);
+    setError(null);
 
-    // Update local events
-    setEvents(prev =>
-      prev.map(event =>
-        event.id === eventId
-          ? {
-              ...event,
-              participants: event.participants.filter(p => p.id !== responseId),
-            }
-          : event
-      )
-    );
+    try {
+      // Delete participant response (availability records cascade)
+      const { error } = await supabase
+        .from('participant_responses')
+        .delete()
+        .eq('id', responseId);
+
+      if (error) throw error;
+
+      // Refresh event data
+      await fetchEvent(eventId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete response';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -307,11 +419,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         currentEventId,
         currentView,
         editingResponseId,
+        isLoading,
+        error,
         setCurrentEventId,
         setCurrentView,
         setEditingResponseId,
         createEvent,
         getEvent,
+        fetchEvent,
         getShareableUrl,
         addParticipantResponse,
         updateParticipantResponse,

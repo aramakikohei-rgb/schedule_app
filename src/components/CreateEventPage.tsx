@@ -53,20 +53,24 @@ export function CreateEventPage() {
     }
 
     setIsCreating(true);
-    await new Promise(resolve => setTimeout(resolve, 300));
 
-    const dateCandidates = selectedDates.map(date => {
-      const dateKey = format(date, 'yyyy-MM-dd');
-      const time = timeInputs[dateKey]?.trim();
-      const dateStr = formatDateForDisplay(date);
-      return {
-        datetime: time ? `${dateStr} ${time}` : dateStr,
-      };
-    });
+    try {
+      const dateCandidates = selectedDates.map(date => {
+        const dateKey = format(date, 'yyyy-MM-dd');
+        const time = timeInputs[dateKey]?.trim();
+        const dateStr = formatDateForDisplay(date);
+        return {
+          datetime: time ? `${dateStr} ${time}` : dateStr,
+        };
+      });
 
-    const eventId = createEvent(title.trim(), memo.trim(), dateCandidates, organizerEmail.trim() || undefined);
-    setCurrentEventId(eventId);
-    setCurrentView('event');
+      const eventId = await createEvent(title.trim(), memo.trim(), dateCandidates, organizerEmail.trim() || undefined);
+      setCurrentEventId(eventId);
+      setCurrentView('event');
+    } catch (error) {
+      console.error('Failed to create event:', error);
+      setIsCreating(false);
+    }
   };
 
   return (

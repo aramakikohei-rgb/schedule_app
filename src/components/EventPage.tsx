@@ -3,19 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { useApp } from '../context/AppContext';
 import type { Availability } from '../types';
 
-// Shorten URL using TinyURL API
-async function shortenUrl(longUrl: string): Promise<string> {
-  try {
-    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-    if (response.ok) {
-      return await response.text();
-    }
-  } catch (error) {
-    console.error('Failed to shorten URL:', error);
-  }
-  return longUrl; // Return original URL if shortening fails
-}
-
 const AvailabilityIcon = ({ availability }: { availability: Availability }) => {
   switch (availability) {
     case 'available':
@@ -31,26 +18,36 @@ const AvailabilityIcon = ({ availability }: { availability: Availability }) => {
 
 export function EventPage() {
   const { t } = useTranslation();
-  const { currentEventId, getEvent, getShareableUrl, setCurrentView, setEditingResponseId } = useApp();
+  const { currentEventId, getEvent, getShareableUrl, setCurrentView, setEditingResponseId, isLoading, fetchEvent } = useApp();
   const [copied, setCopied] = useState(false);
-  const [shortUrl, setShortUrl] = useState<string>('');
-  const [isShortening, setIsShortening] = useState(false);
 
   const event = currentEventId ? getEvent(currentEventId) : undefined;
-  const shareUrl = event ? getShareableUrl(event) : '';
+  const shareUrl = currentEventId ? getShareableUrl(currentEventId) : '';
 
-  // Shorten URL when shareUrl changes
+  // Auto-refresh when tab becomes visible
   useEffect(() => {
-    if (shareUrl) {
-      setIsShortening(true);
-      shortenUrl(shareUrl).then(shortened => {
-        setShortUrl(shortened);
-        setIsShortening(false);
-      });
-    }
-  }, [shareUrl]);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && currentEventId) {
+        fetchEvent(currentEventId);
+      }
+    };
 
-  const displayUrl = shortUrl || shareUrl;
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [currentEventId, fetchEvent]);
+
+  // Refresh data on mount
+  useEffect(() => {
+    if (currentEventId) {
+      fetchEvent(currentEventId);
+    }
+  }, [currentEventId, fetchEvent]);
+
+  const handleRefresh = () => {
+    if (currentEventId) {
+      fetchEvent(currentEventId);
+    }
+  };
 
   const summary = useMemo(() => {
     if (!event) return {};
@@ -91,6 +88,17 @@ export function EventPage() {
       .map(([id]) => id);
   }, [summary, event]);
 
+  if (isLoading && !event) {
+    return (
+      <div className="max-w-4xl mx-auto p-4">
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[#B39E8A] border-t-transparent"></div>
+          <p className="mt-4 text-[#8C7B6A]">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!event) {
     return (
       <div className="max-w-4xl mx-auto p-4">
@@ -103,7 +111,7 @@ export function EventPage() {
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(displayUrl);
+      await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -149,13 +157,12 @@ export function EventPage() {
               <input
                 type="text"
                 readOnly
-                value={isShortening ? 'Shortening URL...' : displayUrl}
+                value={shareUrl}
                 className="flex-1 px-3 py-2 bg-white border border-[#D2C4BA] rounded-lg text-sm text-[#5C4D3D] truncate"
               />
               <button
                 onClick={handleCopyUrl}
-                disabled={isShortening}
-                className={`px-4 py-2 ${copied ? 'bg-green-400' : 'bg-[#B39E8A] hover:bg-[#A08975]'} text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap disabled:opacity-50`}
+                className={`px-4 py-2 ${copied ? 'bg-green-400' : 'bg-[#B39E8A] hover:bg-[#A08975]'} text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap`}
               >
                 {copied ? t('event.copiedUrl') : t('event.copyUrl')}
               </button>
@@ -176,10 +183,20 @@ export function EventPage() {
 
       {/* Attendance Table */}
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-        <div className="bg-[#B39E8A] px-6 py-4">
+        <div className="bg-[#B39E8A] px-6 py-4 flex items-center justify-between">
           <h2 className="font-semibold text-white text-lg">
             {t('event.participants')} ({event.participants.length})
           </h2>
+          <button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <svg className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
         </div>
 
         {event.participants.length === 0 ? (

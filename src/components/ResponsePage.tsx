@@ -63,21 +63,28 @@ export function ResponsePage() {
     if (!name.trim()) return;
 
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 300));
 
-    if (editingResponse) {
-      updateParticipantResponse(event.id, editingResponse.id, name.trim(), comment.trim(), responses);
-    } else {
-      addParticipantResponse(event.id, name.trim(), comment.trim(), responses);
+    try {
+      if (editingResponse) {
+        await updateParticipantResponse(event.id, editingResponse.id, name.trim(), comment.trim(), responses);
+      } else {
+        await addParticipantResponse(event.id, name.trim(), comment.trim(), responses);
+      }
+      setCurrentView('event');
+    } catch (error) {
+      console.error('Failed to submit response:', error);
+      setIsSubmitting(false);
     }
-
-    setCurrentView('event');
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (editingResponse && window.confirm(t('respond.confirmDelete'))) {
-      deleteParticipantResponse(event.id, editingResponse.id);
-      setCurrentView('event');
+      try {
+        await deleteParticipantResponse(event.id, editingResponse.id);
+        setCurrentView('event');
+      } catch (error) {
+        console.error('Failed to delete response:', error);
+      }
     }
   };
 
