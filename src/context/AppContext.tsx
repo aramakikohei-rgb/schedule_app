@@ -5,6 +5,21 @@ import type { ScheduleEvent, AppView, Availability } from '../types';
 
 const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY || 'ef54615d-06a6-4b54-a79a-a0663e248cae';
 
+// URL shortening using TinyURL
+async function shortenUrl(longUrl: string): Promise<string> {
+  try {
+    const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+    if (response.ok) {
+      const shortUrl = await response.text();
+      return shortUrl;
+    }
+    return longUrl; // Fallback to original URL
+  } catch (error) {
+    console.error('Failed to shorten URL:', error);
+    return longUrl; // Fallback to original URL
+  }
+}
+
 // Send email notification using Web3Forms
 async function sendEmailNotification(
   organizerEmail: string,
@@ -52,6 +67,7 @@ interface AppContextType {
   getEvent: (id: string) => ScheduleEvent | undefined;
   fetchEvent: (id: string) => Promise<ScheduleEvent | null>;
   getShareableUrl: (eventId: string) => string;
+  getShortenedUrl: (eventId: string) => Promise<string>;
   addParticipantResponse: (eventId: string, name: string, comment: string, responses: Record<string, Availability>) => Promise<void>;
   updateParticipantResponse: (eventId: string, responseId: string, name: string, comment: string, responses: Record<string, Availability>) => Promise<void>;
   deleteParticipantResponse: (eventId: string, responseId: string) => Promise<void>;
@@ -72,6 +88,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const baseUrl = window.location.origin + window.location.pathname;
     return `${baseUrl}#/event/${eventId}`;
   }, []);
+
+  // Get shortened URL
+  const getShortenedUrl = useCallback(async (eventId: string): Promise<string> => {
+    const longUrl = getShareableUrl(eventId);
+    return shortenUrl(longUrl);
+  }, [getShareableUrl]);
 
   // Fetch a single event from Supabase
   const fetchEvent = useCallback(async (id: string): Promise<ScheduleEvent | null> => {
@@ -311,10 +333,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.log('Event after fetch:', event);
       console.log('Organizer email:', event?.organizerEmail);
 
-      // Send email notification
+      // Send email notification with shortened URL
       if (event?.organizerEmail) {
-        const viewUrl = getShareableUrl(eventId);
-        console.log('Sending email to:', event.organizerEmail, 'with URL:', viewUrl);
+        const viewUrl = await getShortenedUrl(eventId);
+        console.log('Sending email to:', event.organizerEmail, 'with shortened URL:', viewUrl);
         await sendEmailNotification(event.organizerEmail, event.title, name, viewUrl);
       } else {
         console.log('No organizer email found, skipping email notification');
@@ -428,6 +450,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         getEvent,
         fetchEvent,
         getShareableUrl,
+        getShortenedUrl,
         addParticipantResponse,
         updateParticipantResponse,
         deleteParticipantResponse,

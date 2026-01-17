@@ -18,11 +18,23 @@ const AvailabilityIcon = ({ availability }: { availability: Availability }) => {
 
 export function EventPage() {
   const { t } = useTranslation();
-  const { currentEventId, getEvent, getShareableUrl, setCurrentView, setEditingResponseId, isLoading, fetchEvent } = useApp();
+  const { currentEventId, getEvent, getShareableUrl, getShortenedUrl, setCurrentView, setEditingResponseId, isLoading, fetchEvent } = useApp();
   const [copied, setCopied] = useState(false);
+  const [shortUrl, setShortUrl] = useState<string>('');
+  const [isShortening, setIsShortening] = useState(false);
 
   const event = currentEventId ? getEvent(currentEventId) : undefined;
   const shareUrl = currentEventId ? getShareableUrl(currentEventId) : '';
+
+  // Fetch shortened URL on mount
+  useEffect(() => {
+    if (currentEventId && !shortUrl) {
+      setIsShortening(true);
+      getShortenedUrl(currentEventId)
+        .then(url => setShortUrl(url))
+        .finally(() => setIsShortening(false));
+    }
+  }, [currentEventId, getShortenedUrl, shortUrl]);
 
   // Auto-refresh when tab becomes visible
   useEffect(() => {
@@ -111,7 +123,8 @@ export function EventPage() {
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      const urlToCopy = shortUrl || shareUrl;
+      await navigator.clipboard.writeText(urlToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -157,12 +170,13 @@ export function EventPage() {
               <input
                 type="text"
                 readOnly
-                value={shareUrl}
+                value={isShortening ? 'Shortening URL...' : (shortUrl || shareUrl)}
                 className="flex-1 px-3 py-2 bg-white border border-[#D2C4BA] rounded-lg text-sm text-[#5C4D3D] truncate"
               />
               <button
                 onClick={handleCopyUrl}
-                className={`px-4 py-2 ${copied ? 'bg-green-400' : 'bg-[#B39E8A] hover:bg-[#A08975]'} text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap`}
+                disabled={isShortening}
+                className={`px-4 py-2 ${copied ? 'bg-green-400' : 'bg-[#B39E8A] hover:bg-[#A08975]'} disabled:bg-gray-300 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap`}
               >
                 {copied ? t('event.copiedUrl') : t('event.copyUrl')}
               </button>
